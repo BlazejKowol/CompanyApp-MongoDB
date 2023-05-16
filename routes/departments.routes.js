@@ -1,50 +1,80 @@
 const express = require('express');
 const router = express.Router();
-const ObjectId = require('mongodb').ObjectId;
+const Department = require('../models/departments.model');
 
-router.get('/departments', (req, res) => {
-  req.db.collection('departments').find().toArray((err, data) => {
-    if(err) res.status(500).json({ message: err});
-    else res.json(data);
-  });
+router.get('/departments', async (req, res) => {
+  try {
+  res.json(await Department.find());
+  }
+  catch(err) {
+  res.status(500).json({ message: err });
+  }
+ });
+
+ router.get('/departments/random', async (req, res) => {
+  try {
+  const count = await Department.countDocuments(); // zlicza ilość wszystkich dokumentów w kolekcji
+  const random = Math.floor(Math.random() * count);
+  const dep = await Department.findOne().skip(random); // skip pomija dowolną ilość dokumentów przy wyszukiwaniu
+  if(!dep) res.status(404).json({ message: 'Not found' });
+  else res.json(dep);
+  }
+  catch(err) {
+  res.status(500).json({ message: err });
+  }
+ });
+
+router.get('/departments/:id', async (req, res) => {
+  try {
+    const department = Department.findById(req.params.id);
+    if(!department) res.status(404).json({ message: 'Not found' }) 
+    else res.json(await department);
+  }
+  catch(err) {
+    res.status(500).json({ message: err });
+  }
 });
 
-router.get('/departments/random', (req, res) => {
-  req.db.collection('departments').aggregate([{ $sample: { size: 1 } }]).toArray((err, data) => {
-    if (err) res.status(500).json({ message: err });
-    else res.json(data[0]);
-  });
-});
-
-router.get('/departments/:id', (req, res) => {
-  req.db.collection('departments').findOne({ _id: ObjectId(req.params.id) }, (err, data) => {
-    if (err) res.status(500).json({ message: err });
-    else if (!data) res.status(404).json({ message: 'Not found' });
-    else res.json(data);
-  });
-});
-
-router.post('/departments', (req, res) => {
+router.post('/departments', async (req, res) => {
+  try {
   const { name } = req.body;
-  req.db.collection('departments').insertOne({ name: name }, err => {
-    if (err) res.status(500).json({ message: err });
-    else res.json({ message: 'OK' });
-  });
-});
-
-router.put('/departments/:id', (req, res) => {
+  const newDepartment = new Department({ name: name });
+  await newDepartment.save();
+  res.json({ message: 'OK' });
+  } catch(err) {
+  res.status(500).json({ message: err });
+  }
+ });
+ 
+router.put('/departments/:id', async (req, res) => {
   const { name } = req.body;
-  req.db.collection('departments').updateOne({ _id: ObjectId(req.params.id) }, {$set: { name: name }}, err => {
-    if (err) res.status(500).json({ message: err });
-    else res.json({ message: 'OK' });
-  });
+
+  try {
+  const dep = await Department.findById(req.params.id);
+  if(dep) {
+  const updatedDep = await Department.updateOne({_id: req.params.id}, {$set: {name: name}}, { new: true })
+  res.json(updatedDep);
+    } else {
+      res.status(404).json({ message: 'Not found...' })
+    }
+  } 
+  catch(err) {
+    res.status(500).json({ message: err });
+  }
 });
 
-router.delete('/departments/:id', (req, res) => {
-  req.db.collection('departments').deleteOne({ _id: ObjectId(req.params.id) }, err => {
-    if (err) res.status(500).json({ message: err });
-    else res.json({ message: 'OK' });
-  });
+router.delete('/departments/:id', async (req, res) => {
+  try {
+    const department = await Department.findById(req.params.id); // czy tu musi być await też? w get by id nie ma?
+    if(!department) res.status(404).json({ message: 'Not found' }) 
+    else {
+      await Department.deleteOne({_id: req.params.id})
+      res.json(department);
+    };
+  }
+  catch(err) {
+    res.status(500).json({ message: err });
+  }
 });
 
 module.exports = router;
